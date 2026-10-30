@@ -8,6 +8,17 @@ import io
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def get_ffmpeg_exe():
+    import shutil
+    bin_path = shutil.which('ffmpeg')
+    if bin_path:
+        return bin_path
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return 'ffmpeg'
+
 def default_conv(in_channels, out_channels, kernel_size, bias=True):
     return nn.Conv2d(in_channels, out_channels, kernel_size, padding=(kernel_size//2), bias=bias)
 
@@ -113,11 +124,20 @@ class VideoProcessor:
         self.net = FFA(gps=3, blocks=12)
         self.net = nn.DataParallel(self.net)
         self.net = self.net.to(device)
-        ckp = torch.load(model_path, map_location=device)
+        ckp = torch.load(model_path, map_location=device, weights_only=False)
         self.net.load_state_dict(ckp['model'])
         self.net.eval()
 
-    def process_frame(self, frame):
+    def process_frame(self, frame, is_video=False):
+        orig_h, orig_w = frame.shape[:2]
+        # Video frames on CPU need smaller dimension for fast processing
+        max_dim = (320 if is_video else 480) if device == 'cpu' else 1280
+        if max(orig_h, orig_w) > max_dim:
+            scale = max_dim / max(orig_h, orig_w)
+            w, h = (int(orig_w * scale) // 4) * 4, (int(orig_h * scale) // 4) * 4
+            frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+        else:
+            w, h = orig_w, orig_h
         frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
         transform = tfs.Compose([
@@ -133,6 +153,8 @@ class VideoProcessor:
         dehazed = dehazed.permute(1, 2, 0).numpy() * 255
         dehazed = dehazed.astype(np.uint8)
         dehazed = cv2.cvtColor(dehazed, cv2.COLOR_RGB2BGR)
+        if (w, h) != (orig_w, orig_h):
+            dehazed = cv2.resize(dehazed, (orig_w, orig_h), interpolation=cv2.INTER_CUBIC)
 
         return dehazed
 
@@ -162,7 +184,7 @@ class VideoProcessor:
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Extract frames using ffmpeg
                 extract_cmd = [
-                    'ffmpeg', '-i', temp_input,
+                    get_ffmpeg_exe(), '-i', temp_input,
                     os.path.join(temp_dir, 'frame_%d.png')
                 ]
                 subprocess.run(extract_cmd, check=True)
@@ -180,7 +202,7 @@ class VideoProcessor:
                         raise ValueError(f"Unable to read frame: {frame_path}")
 
                     # Process the frame
-                    processed = self.process_frame(img)
+                    processed = self.process_frame(img, is_video=True)
 
                     # Save the processed frame
                     cv2.imwrite(frame_path, processed)
@@ -188,7 +210,7 @@ class VideoProcessor:
 
                 # Combine frames back into video using ffmpeg
                 combine_cmd = [
-                    'ffmpeg', '-y',  # -y to overwrite output file if it exists
+                    get_ffmpeg_exe(), '-y',  # -y to overwrite output file if it exists
                     '-framerate', '30',  # or use original video's framerate
                     '-i', os.path.join(temp_dir, 'frame_%d.png'),
                     '-c:v', 'libx264',  # use H.264 codec

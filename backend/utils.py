@@ -94,7 +94,19 @@ def DehazeVideo(frame):
     J = Recover(I, t, A, 0.1)
     return (J * 255).astype('uint8')
 
+def get_ffmpeg_exe():
+    import shutil
+    bin_path = shutil.which('ffmpeg')
+    if bin_path:
+        return bin_path
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return 'ffmpeg'
+
 def ProcessVideo(input_path, output_path):
+    ffmpeg_bin = get_ffmpeg_exe()
     import subprocess
     import tempfile
     import os
@@ -103,7 +115,7 @@ def ProcessVideo(input_path, output_path):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Extract frames using ffmpeg
         extract_cmd = [
-            'ffmpeg', '-i', input_path,
+            ffmpeg_bin, '-i', input_path,
             os.path.join(temp_dir, 'frame_%d.png')
         ]
         subprocess.run(extract_cmd, check=True)
@@ -124,7 +136,7 @@ def ProcessVideo(input_path, output_path):
 
         # Combine frames back into video using ffmpeg
         combine_cmd = [
-            'ffmpeg', '-y',  # -y to overwrite output file if it exists
+            ffmpeg_bin, '-y',  # -y to overwrite output file if it exists
             '-framerate', '30',  # or use original video's framerate
             '-i', os.path.join(temp_dir, 'frame_%d.png'),
             '-c:v', 'libx264',  # use H.264 codec
