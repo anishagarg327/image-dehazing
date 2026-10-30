@@ -57,7 +57,8 @@ const Uploader = () => {
     const { mutate, isPending, isSuccess } = useMutation({
         mutationKey: ["upload"],
         mutationFn: async (formData: FormData) => {
-            const response = await axios.post("http://localhost:8000/dehaze", formData, { responseType: "blob" });
+            const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+            const response = await axios.post(`${apiUrl}/dehaze`, formData, { responseType: "blob" });
             return response;
         },
         onSuccess: (data) => {
