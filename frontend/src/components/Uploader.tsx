@@ -54,11 +54,14 @@ const Uploader = () => {
         },
     });
 
-    const { mutate, isPending, isSuccess } = useMutation({
+    const { mutate, isPending, isSuccess, isError } = useMutation({
         mutationKey: ["upload"],
         mutationFn: async (formData: FormData) => {
             const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/+$/, "");
-            const response = await axios.post(`${apiUrl}/dehaze`, formData, { responseType: "blob" });
+            const response = await axios.post(`${apiUrl}/dehaze`, formData, {
+                responseType: "blob",
+                timeout: 120000,
+            });
             return response;
         },
         onSuccess: (data) => {
@@ -184,11 +187,16 @@ const Uploader = () => {
                             />
                         </div>
                         <p className="text-red-500 mb-2">{form.formState.errors.file?.message}</p>
-                        <Button className="w-full gap-2">
+                        <Button className="w-full gap-2" disabled={isPending}>
                             {isPending && <Loader className="size-5 animate-spin" />}
                             {isSuccess && <Check className="size-5" />}
-                            {isPending ? "Uploading..." : "Upload"}
+                            {isPending ? "Processing..." : "Upload"}
                         </Button>
+                        {isError && (
+                            <p className="text-red-500 text-sm mt-2 text-center">
+                                Processing failed or timed out. Please try a shorter video clip or image.
+                            </p>
+                        )}
                     </form>
                 </Form>
             </CardContent>

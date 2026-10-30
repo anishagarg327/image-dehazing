@@ -185,7 +185,8 @@ class VideoProcessor:
                 # Extract frames using ffmpeg
                 extract_cmd = [
                     get_ffmpeg_exe(), '-i', temp_input,
-                    os.path.join(temp_dir, 'frame_%d.png')
+                    '-vf', 'scale=min(480\,iw):-2,fps=10',
+                    os.path.join(temp_dir, 'frame_%04d.png')
                 ]
                 subprocess.run(extract_cmd, check=True)
 
@@ -209,14 +210,22 @@ class VideoProcessor:
                     print(f"Processing frame {i}/{total_frames}")
 
                 # Combine frames back into video using ffmpeg
+                if len(frames) > 50:
+                    for extra in frames[50:]:
+                        try:
+                            os.remove(os.path.join(temp_dir, extra))
+                        except Exception:
+                            pass
+                    frames = frames[:50]
+
                 combine_cmd = [
-                    get_ffmpeg_exe(), '-y',  # -y to overwrite output file if it exists
-                    '-framerate', '30',  # or use original video's framerate
-                    '-i', os.path.join(temp_dir, 'frame_%d.png'),
-                    '-c:v', 'libx264',  # use H.264 codec
-                    '-pix_fmt', 'yuv420p',  # pixel format for better compatibility
-                    '-crf', '23',  # quality setting (lower = better quality, 23 is default)
-                    '-preset', 'medium',  # encoding speed preset
+                    get_ffmpeg_exe(), '-y',
+                    '-framerate', '10',
+                    '-i', os.path.join(temp_dir, 'frame_%04d.png'),
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-crf', '23',
+                    '-preset', 'veryfast',
                     temp_output
                 ]
                 subprocess.run(combine_cmd, check=True)
