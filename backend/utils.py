@@ -70,7 +70,7 @@ def Recover(im,t,A,tx = 0.1):
     for ind in range(0,3):
         res[:,:,ind] = (im[:,:,ind]-A[0,ind])/t + A[0,ind]
 
-    return res
+    return np.clip(res, 0.0, 1.0)
 
 def Dehaze(fn):
     src = cv2.imread(fn);

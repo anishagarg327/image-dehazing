@@ -150,8 +150,9 @@ class VideoProcessor:
             dehazed = self.net(frame)
 
         dehazed = dehazed.squeeze(0).cpu()
-        dehazed = dehazed.permute(1, 2, 0).numpy() * 255
-        dehazed = dehazed.astype(np.uint8)
+        dehazed = dehazed.permute(1, 2, 0).numpy()
+        # Clip values to [0, 1] to prevent integer underflow/overflow (which caused red artifacts)
+        dehazed = (np.clip(dehazed, 0.0, 1.0) * 255.0).astype(np.uint8)
         dehazed = cv2.cvtColor(dehazed, cv2.COLOR_RGB2BGR)
         if (w, h) != (orig_w, orig_h):
             dehazed = cv2.resize(dehazed, (orig_w, orig_h), interpolation=cv2.INTER_CUBIC)
